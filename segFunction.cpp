@@ -20,7 +20,7 @@ SegFunction::SegFunction(void)
 void SegFunction::init()
 {
 
-	gFileName = "E:/ChenKaiyu/";
+	gFileName = "F:/CentreLine2/1213-5/ChenCongmei/";
 	// pretreatment
 	iContrastFlag=70;//造影剂使用标记
 	iMaxIm=100;
@@ -344,7 +344,7 @@ bool SegFunction::liversegment(short *pData_Base,const int *iDimension, const fl
 	char *pTran_temp=new char[len];
 	memcpy(pTran_temp,pTranMask,sizeof(char)*len);
 
-	seg_CaudateLobe(pTranMask, iTranOriginal, iTranDim); // 分割肝尾页
+	seg_CaudateLobe(pTranMask, iTranOriginal, iTranDim); // 分割肝尾叶
 	 
 	end = time(NULL);
 	int timeCost = end - begin; 
@@ -355,7 +355,7 @@ bool SegFunction::liversegment(short *pData_Base,const int *iDimension, const fl
 	 seg_CaudateLobe_manual(pTran_temp,iTranOriginal,iTranDim);
 	//*********************
 
-	
+
 	 /*手工动作主要分两种，一种是补，一种是割
 	   并且位置也分为两处，第一处是尾叶与2、3段之间连接部分，第二处是尾叶与6、7段连接的部分
 	   第一处直接保存手工分割肝尾叶结果即可
@@ -380,7 +380,7 @@ bool SegFunction::liversegment(short *pData_Base,const int *iDimension, const fl
 	//****************在第二处分割，将割掉的部分还给6、7段，注意坐标是变换后的坐标
 	if(bCutFlag)
 	{
-		seg_mask_8_3(portalLineR, pMask, iDimension);
+	   seg_mask_8_3(portalLineR, pMask, iDimension);
 	}
 	
 	 //*****************
@@ -5499,8 +5499,7 @@ void SegFunction::seg_CaudateLobe_manual(char *pMask_2_3, int *iTranOriginal, co
 	int pageSize = iDim[0] * iDim[1];
 	int *dis = new int[len];
 	memset(dis, 0, len * sizeof(int)); // dis内容全部置0
-
-
+	
 	// ChenKaiyu
 	int pointa[3]={224,197,531};  
 	int pointb[3]={218,233,531};
@@ -5518,9 +5517,9 @@ void SegFunction::seg_CaudateLobe_manual(char *pMask_2_3, int *iTranOriginal, co
 	//int pointa[3]={230,238,43};  //237,230,250  原图坐标
 	//int pointb[3]={245,241,43}; //手工在肝上切割的一条线
 
-	// ChenAnping
+	//ChenAnping
 	/*int pointa[3]={209,215,494};  
-	int pointb[3]={216,237,494}; */
+	int pointb[3]={216,237,494};*/ 
 	int tempPoint[3]={0,0,0};
 	for(int i=0;i<len;i++)
 	{
