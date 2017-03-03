@@ -9,13 +9,14 @@
 #include <stdio.h>
 #include  "ipps.h"
 #include <time.h>
-#include<ipp.h>
+#include <ipp.h>
 #include <conio.h>
 #include <direct.h>
 #include <math.h>
 #include "Hull3D.h"
 #include <string>
-#include<time.h>
+#include <time.h>
+#include <fstream>
 //#include "McsfAlgoVector3D.h"
 
 namespace CbibSeg{
@@ -277,7 +278,7 @@ namespace CbibSeg{
 		void SegFunction::rotate(char *pMask,const int *iDim,const int *veinPoint,const int *portalPoint,const int *portalL);
 		void corrosion(char *afterFlag,char *flag,int mark1,int mark2,const int *iDim);
 		bool is_connect(char *mask,char *temp,int mark1,int mark2,const int *iDim,int &change);
-		//char* translateTran(int* iTranOriginal, int *iTranDim, short *pData_Base, char *pMask8, const int *iDim);  // 平移变换函数
+		char* translateTran(int* iTranOriginal, int *iTranDim, short *pData_Base, char *pMask8, const int *iDim);  // 平移变换函数
 		char* translateTran(int *iTranOriginal, int *iTranDim, char *pMask8, const int *iDim);  // 平移变换函数
 		char* translateTranReverse(int *iTranOriginal, const int *iTranDim, char *pTranMask, char *pMask8, const int *iDim);  // 平移逆变换函数
 		void DisGraph(char *mask,int *dis,const int *iDim);
@@ -288,13 +289,18 @@ namespace CbibSeg{
 		bool maxPoint(float *newdata,int x,int y,const int *iDimension);
 		double pointToLine(int *point,int *start,int *end, int *iTranOriginal);
 		double pointToLine(int *point,int *a,int *b);
+		double pointToPoint2D(int *point,int *portal);
 		double pointToPoint(int *point,int *portal);
 		bool WaterShedNew(int *pSrc, unsigned char * SeedImage, char * pDst,const int *iDim,char * m_pMask,int num);
 		bool WaterShed2D(unsigned char *pSrc,unsigned char * SeedImage,char * pDst,char *mask2D,const int *iDim,int num);
 		//需要提交的子函数
 		template<typename T>
 		void writeData(T *mask,string name,const int *iDim);
-		
+		/*void writeData(char *mask,string name,const int *iDim);
+		void writeData(unsigned char *mask,string name,const int *iDim);
+		void writeData(int *mask,string name,const int *iDim);
+		void writeData(float *mask,string name,const int *iDim);
+		void writeData(short *mask,string name,const int *iDim);*/
 	
 		void GrowOnPoint(float *mask,char *mask8,int *point,const int *iDim);
 		//主要的函数
@@ -373,6 +379,7 @@ namespace CbibSeg{
 
 		//八段分割辅助函数
 		int generate_plane_3point(const int *a,const int *b,const int *c,int *plane);
+		void generate_line_2point(const int *a,const int *b,float *line);
 		bool find_place(int *a,int*b,int *aim,float& cosValue);
 
 		void copyPlane(int *dst,int *src)
