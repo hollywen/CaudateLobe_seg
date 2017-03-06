@@ -5652,46 +5652,110 @@ void SegFunction::seg_CaudateLobe_manual(char *pMask_2_3, int *iTranOriginal, co
 	pointBOnPlane[0]=pointb[0]-iTranOriginal[0];
 	pointBOnPlane[1]=pointb[1]-iTranOriginal[1];
 
-	int pointMiddleOnPlane[2];
+	// 求中点
+	/*int pointMiddleOnPlane[2];
 	pointMiddleOnPlane[0] = (pointAOnPlane[0] + pointBOnPlane[0]) / 2;
-	pointMiddleOnPlane[1] = (pointAOnPlane[1] + pointBOnPlane[1]) / 2;
+	pointMiddleOnPlane[1] = (pointAOnPlane[1] + pointBOnPlane[1]) / 2;*/
 
 	float line[2];
 	generate_line_2point(pointAOnPlane,pointBOnPlane,line);
 	
-	int pointTemp[2];
+	//int pointTemp[2];
 	//只观察z=z_position 这一层
 	vector<int> label1(num,0);
 	vector<int> label2(num,0);
-	int count1=0;
-	int count2=0;
+	/*int count1=0;
+	int count2=0;*/
 	for(int i=0;i<iDim[0];i++) //x
 		for(int j=0;j<iDim[1];j++) //y
 		{
 			int pos = z_position*pageSize+j*iDim[0]+i;
 
-			pointTemp[0] = i;
-			pointTemp[1] = j;
-			if(pointToPoint2D(pointTemp, pointMiddleOnPlane) > 45)
-				continue;
-
+			//pointTemp[0] = i;
+			//pointTemp[1] = j;
+			//if(pointToPoint2D(pointTemp, pointMiddleOnPlane) > 45)
+			//	continue;
 			if(pDst[pos]) //pDst分水岭结果
 			{
 			  if(line[0]*i+line[1]>j)   // kx + b > y
 			  {
-			     count1++;
+			     //count1++;
 				 label1[pDst[pos] - 1] += 1;
 			  }
 			  else 
 			  {
-			     count2++;
+			     //count2++;
 				 label2[pDst[pos] - 1] += 1;
 			  }
 			}
 		}
 
+    int count1=0;
+	int count2=0;
+	int count3=0;
+	int centrePoint1[3] = {0, 0, 0};
+	int centrePoint2[3] = {0, 0, 0};
+	int centrePoint3[3] = {0, 0, 0};
+    for(int k=0;k<iDim[2];k++)
+		for(int j=0;j<iDim[1];j++)
+			for(int i=0;i<iDim[0];i++)
+			{
+				  int pos=k*pageSize+j*iDim[0]+i;
+				  if(pos < len && pDst[pos])
+				  {
+					count3++;
+					centrePoint3[0]+=i;
+					centrePoint3[1]+=j;
+					centrePoint3[2]+=k;
+					if(pDst[pos] > 0 && pDst[pos] <= num)
+					{
+						if(label1[pDst[pos] - 1])
+						{
+						   count1++;
+						   centrePoint1[0]+=i;
+						   centrePoint1[1]+=j;
+						   centrePoint1[2]+=k;
+						}
+						if(label2[pDst[pos] - 1])
+						{
+						   count2++;
+						   centrePoint2[0]+=i;
+						   centrePoint2[1]+=j;
+						   centrePoint2[2]+=k;
+						}
+					}
+				  }
+			}
+
+	char iFlagCount = 0;
+	if(0 == count1)
+		iFlagCount = 1;
+	else
+	{
+		centrePoint1[0]/=count1;
+		centrePoint1[1]/=count1;
+		centrePoint1[2]/=count1;
+	}
+    
+	if(0 == count2)
+		iFlagCount = 2;
+	else
+	{
+		centrePoint2[0]/=count2;
+		centrePoint2[1]/=count2;
+		centrePoint2[2]/=count2;
+	}
+
+	if(0 == count3)
+		return ;
+	
+	centrePoint3[0]/=count3;
+	centrePoint3[1]/=count3;
+	centrePoint3[2]/=count3;
+
+
    //将需要割去的标签保存在label1中
-   if(count1 > count2) 
+   if(0 == iFlagCount && pointToPoint(centrePoint1,centrePoint3) < pointToPoint(centrePoint2,centrePoint3)) //count1 > count2
    {
 		 for(int i = 0; i < num; i++)
 		 {
