@@ -20,7 +20,7 @@ SegFunction::SegFunction(void)
 void SegFunction::init()
 {
 
-	gFileName = "E:/ChenAnping/";
+	gFileName = "E:/Case/ChenCongmei/";
 	// pretreatment
 	iContrastFlag=70;//造影剂使用标记
 	iMaxIm=100;
@@ -340,16 +340,25 @@ bool SegFunction::liversegment(short *pData_Base,const int *iDimension, const fl
 	int timeCost;
 	begin = time(NULL);
 
-	char *pTranMask = NULL;
+
 	int *iTranDim = new int[3];
 	int *iTranOriginal = new int[3];
-	
-	pTranMask = translateTran(iTranOriginal, iTranDim, pData_Base, mask8, iDimension); //平移变换函数 使用pData_Base输出变换后的Raw（中间结果） 方便测试使用
-	//pTranMask = translateTran(iTranOriginal, iTranDim, mask8, iDimension); // 平移变换函数
+	calculateTranDim(iTranOriginal, iTranDim, mask8, iDimension);  //计算平移变换后的大小
 
-	int len = iTranDim[0]*iTranDim[1]*iTranDim[2];
-	char *pTranMask_temp = new char[len];
-	memcpy(pTranMask_temp, pTranMask, sizeof(char)*len);
+
+	int iTranLength = iTranDim[0] * iTranDim[1] * iTranDim[2];    // 平移变换后图像的大小
+	//int iTranSizeXY = iTranDim[0] * iTranDim[1];                  // 平移变换后图像的页面大小(一层)
+	// 存储平移变换之后的mask和raw
+	char *pTranMask = new char[iTranLength];
+	short *pTranRaw = new short[iTranLength];
+
+
+	translateTran(iTranOriginal, iTranDim, pTranRaw, pTranMask, pData_Base, mask8, iDimension); //平移变换函数 使用pData_Base输出变换后的Raw（中间结果） 方便测试使用
+	//pTranMask = translateTran(iTranOriginal, iTranDim, mask8, iDimension); // 平移变换函数不输出中间结果Raw
+
+	
+	char *pTranMask_temp = new char[iTranLength];
+	memcpy(pTranMask_temp, pTranMask, sizeof(char)*iTranLength);
 
 	seg_CaudateLobe(pTranMask, iTranOriginal, iTranDim); // 分割肝尾页
 
@@ -365,8 +374,9 @@ bool SegFunction::liversegment(short *pData_Base,const int *iDimension, const fl
 	time_t beginManual,endManual;
 	int timeCostManual;
 	beginManual = time(NULL);
-	//*******************根据自动分割的结果进行手动修改
-	 seg_CaudateLobe_manual(pTranMask_temp,iTranOriginal,iTranDim);
+	//*******************根据自动分割的结果进行手动修改  补割需要调用不同的函数
+	 seg_CaudateLobe_manual_mend(pTranMask_temp,iTranOriginal,iTranDim);
+	 //seg_CaudateLobe_manual_cut(pTranMask_temp,iTranOriginal,iTranDim);
 	//*********************
 
 	
@@ -377,7 +387,7 @@ bool SegFunction::liversegment(short *pData_Base,const int *iDimension, const fl
 	 */
 	
 	bool bCutFlag = false;
-	for(int i=0;i<len;i++)
+	for(int i=0;i<iTranLength;i++)
 	 {
 	   if(pTranMask[i]==LIVER_8SEGMENT_PART9 && pTranMask_temp[i]!=LIVER_8SEGMENT_PART9)
 	   {
@@ -385,7 +395,7 @@ bool SegFunction::liversegment(short *pData_Base,const int *iDimension, const fl
 		   bCutFlag = true;
 	   }
 	 }
-	//memcpy(pTranMask, pTranMask_temp, sizeof(char)*len);
+	//memcpy(pTranMask, pTranMask_temp, sizeof(char)*iTranLength);
 
 	char *pMaskManual = NULL;
 	pMaskManual = translateTranReverse(iTranOriginal, iTranDim, pTranMask_temp, mask8, iDimension); //平移逆变换函数
@@ -5127,9 +5137,131 @@ void SegFunction::smooth(int model)
 //	delete[]result;
 //}
 
-
 /*
  * 平移变换函数 translateTran
+ * 参数：
+ *      iTranOriginal 变换后的坐标原点
+ *		iTranDim      变换后的图像xyz
+ *		pMask         原图像的mask
+ *		iDim		  原图像的xyz
+ *
+ * 返回值： 变换后图像的mask
+ *
+ *
+ */
+char* SegFunction::translateTran(int* iTranOriginal, int *iTranDim, char *pMask8, const int *iDim)
+{
+	if(nullptr == pMask8 || nullptr == iDim || nullptr == iTranOriginal || nullptr == iTranDim)
+		return NULL;
+
+	int iLength = iDim[0] * iDim[1] * iDim[2]; // 原始图像的大小
+	int iSizeXY = iDim[0] * iDim[1];           // 原始图像的页面大小(一层)
+	int iMinX, iMaxX;
+	int iMinY, iMaxY;
+	int iMinZ, iMaxZ;
+	bool firstIn = true;
+	// 求出2，3段中最大最小边界
+	for(int i = 0; i < iLength; i++)
+	{
+		if(LIVER_8SEGMENT_PART2 == pMask8[i] || LIVER_8SEGMENT_PART3 == pMask8[i]) // 图像中2、3段以外的mask值均为0
+		{
+			// 求出肝在原始图像中的坐标
+			int zz = i / iSizeXY;            
+			int yy = i % iSizeXY / iDim[0];
+			int xx = i % iDim[0];
+
+			if(firstIn)
+			{
+				iMinX = iMaxX = xx;   // 赋初值
+				iMinY = iMaxY = yy;
+				iMinZ = iMaxZ = zz;
+				firstIn = false;
+			}
+
+			if(xx < iMinX) 
+				iMinX = xx;
+			else if(xx > iMaxX)
+				iMaxX = xx;
+
+			if(yy < iMinY) 
+				iMinY = yy;
+			else if(yy > iMaxY)
+				iMaxY = yy;
+
+			if(zz < iMinZ) 
+				iMinZ = zz;
+			else if(zz > iMaxZ)
+				iMaxZ = zz;
+		}
+	}
+
+	// 若变换后图像的原点不在xyz轴的边界上，原点和长宽高分别减1和加1 （在图像周围多长一圈）
+	// 求出变换后图像的原点和长宽高xyz
+	if(iMinX == 0 || iMinY == 0 || iMinZ == 0)
+	{
+		// 求出变换后图像原点
+		iTranOriginal[0] = iMinX;
+		iTranOriginal[1] = iMinY;
+		iTranOriginal[2] = iMinZ;
+
+		// 求出变换后图像的长宽高
+		iTranDim[0] = iMaxX - iMinX + 1; 
+		iTranDim[1] = iMaxY - iMinY + 1;
+		iTranDim[2] = iMaxZ - iMinZ + 1;
+	}
+	else
+	{
+		iTranOriginal[0] = iMinX - 1;
+		iTranOriginal[1] = iMinY - 1;
+		iTranOriginal[2] = iMinZ - 1;
+
+		iTranDim[0] = (iMaxX - iMinX + 1) + 2; 
+		iTranDim[1] = (iMaxY - iMinY + 1) + 2;
+		iTranDim[2] = (iMaxZ - iMinZ + 1) + 2;
+	}
+	
+	int iTranLength = iTranDim[0] * iTranDim[1] * iTranDim[2];    // 平移变换后图像的大小
+	int iTranSizeXY = iTranDim[0] * iTranDim[1];                  // 平移变换后图像的页面大小(一层)
+
+	// 存储平移变换之后的mask和raw
+	char *pTranMask = new char[iTranLength];
+	short *pTranRaw = new short[iTranLength];
+
+	for(int i = 0; i < iTranLength; i++)
+	{
+		// 求变换后图像位置的坐标
+		int zz = i / iTranSizeXY;
+		int yy = i % iTranSizeXY / iTranDim[0];
+		int xx = i % iTranDim[0];
+
+		int positionI = (zz + iTranOriginal[2]) * iSizeXY + (yy + iTranOriginal[1]) * iDim[0] + (xx + iTranOriginal[0]); // 算出标签映射回原图像的坐标位置
+		if(LIVER_8SEGMENT_PART2 == pMask8[positionI] || LIVER_8SEGMENT_PART3 == pMask8[positionI])
+		{
+			pTranMask[i] = pMask8[positionI];      		
+		}
+		else
+		{
+			pTranMask[i] = 0;
+		}
+	}
+
+	writeData(pTranRaw, gFileName + "tranRaw.raw", iTranDim);   //输出变换后的Raw
+	writeData(pTranMask, gFileName + "tranMask.raw", iTranDim); //输出变换后的Mask
+	ofstream tranParam(gFileName + "tranParam.txt");
+    if (tranParam.is_open())
+    {
+        tranParam << "iTranOriginal" << endl;
+		tranParam << "xOriginal = " << iTranOriginal[0] << "\nyOriginal = " << iTranOriginal[1] << "\nzOriginal = " << iTranOriginal[2] << endl;
+		tranParam << "\niTranDim\n";
+		tranParam << "x = " << iTranDim[0] << "\ny = " << iTranDim[1] << "\nz = " << iTranDim[2] << "\n";
+		tranParam << "Z_iStart = " << iStart << "\nZ_iEnd = " << iEnd;
+        tranParam.close();
+    }
+	return pTranMask;
+}
+
+/*
+ * 平移变换函数 translateTran  并输出中间结果Raw
  * 参数：
  *      iTranOriginal 变换后的坐标原点
  *		iTranDim      变换后的图像xyz
@@ -5142,9 +5274,8 @@ void SegFunction::smooth(int model)
  *
  */
 char* SegFunction::translateTran(int *iTranOriginal, int *iTranDim, short *pData_Base, char *pMask8, const int *iDim)
-//char* SegFunction::translateTran(int* iTranOriginal, int *iTranDim, char *pMask8, const int *iDim)
 {
-	if(nullptr == pMask8 || nullptr == iDim || nullptr == iTranOriginal || nullptr == iTranDim)
+	if(nullptr == pMask8 || nullptr == iDim || nullptr == iTranOriginal || nullptr == iTranDim || nullptr == pData_Base)
 		return NULL;
 
 	int iLength = iDim[0] * iDim[1] * iDim[2]; // 原始图像的大小
@@ -5259,6 +5390,127 @@ char* SegFunction::translateTran(int *iTranOriginal, int *iTranDim, short *pData
 	return pTranMask;
 }
 
+void SegFunction::calculateTranDim(int* iTranOriginal, int *iTranDim, char *pMask8, const int *iDim)
+{
+	if(nullptr == iTranOriginal || nullptr == iTranDim || nullptr == pMask8 || nullptr == iDim)
+		return ;
+
+	int iLength = iDim[0] * iDim[1] * iDim[2]; // 原始图像的大小
+	int iSizeXY = iDim[0] * iDim[1];           // 原始图像的页面大小(一层)
+	int iMinX, iMaxX;
+	int iMinY, iMaxY;
+	int iMinZ, iMaxZ;
+	bool firstIn = true;
+	// 求出2，3段中最大最小边界
+	for(int i = 0; i < iLength; i++)
+	{
+		if(LIVER_8SEGMENT_PART2 == pMask8[i] || LIVER_8SEGMENT_PART3 == pMask8[i]) // 图像中2、3段以外的mask值均为0
+		{
+			// 求出肝在原始图像中的坐标
+			int zz = i / iSizeXY;            
+			int yy = i % iSizeXY / iDim[0];
+			int xx = i % iDim[0];
+
+			if(firstIn)
+			{
+				iMinX = iMaxX = xx;   // 赋初值
+				iMinY = iMaxY = yy;
+				iMinZ = iMaxZ = zz;
+				firstIn = false;
+			}
+
+			if(xx < iMinX) 
+				iMinX = xx;
+			else if(xx > iMaxX)
+				iMaxX = xx;
+
+			if(yy < iMinY) 
+				iMinY = yy;
+			else if(yy > iMaxY)
+				iMaxY = yy;
+
+			if(zz < iMinZ) 
+				iMinZ = zz;
+			else if(zz > iMaxZ)
+				iMaxZ = zz;
+		}
+	}
+
+	// 若变换后图像的原点不在xyz轴的边界上，原点和长宽高分别减1和加1 （在图像周围多长一圈）
+	// 求出变换后图像的原点和长宽高xyz
+	if(iMinX == 0 || iMinY == 0 || iMinZ == 0)
+	{
+		// 求出变换后图像原点
+		iTranOriginal[0] = iMinX;
+		iTranOriginal[1] = iMinY;
+		iTranOriginal[2] = iMinZ;
+
+		// 求出变换后图像的长宽高
+		iTranDim[0] = iMaxX - iMinX + 1; 
+		iTranDim[1] = iMaxY - iMinY + 1;
+		iTranDim[2] = iMaxZ - iMinZ + 1;
+	}
+	else
+	{
+		iTranOriginal[0] = iMinX - 1;
+		iTranOriginal[1] = iMinY - 1;
+		iTranOriginal[2] = iMinZ - 1;
+
+		iTranDim[0] = (iMaxX - iMinX + 1) + 2; 
+		iTranDim[1] = (iMaxY - iMinY + 1) + 2;
+		iTranDim[2] = (iMaxZ - iMinZ + 1) + 2;
+	}
+}
+
+void SegFunction::translateTran(int *iTranOriginal, int *iTranDim, short *pTranRaw, char *pTranMask, short *pData_Base, char *pMask8, const int *iDim)
+{
+	if(nullptr == iTranOriginal || nullptr == iTranDim || nullptr == pTranMask || nullptr == pTranRaw || nullptr == pData_Base || nullptr == pMask8 || nullptr == iDim)
+		return ;
+
+	//int iLength = iDim[0] * iDim[1] * iDim[2]; // 原始图像的大小
+	int iSizeXY = iDim[0] * iDim[1];           // 原始图像的页面大小(一层)
+
+	int iTranLength = iTranDim[0] * iTranDim[1] * iTranDim[2];    // 平移变换后图像的大小
+	int iTranSizeXY = iTranDim[0] * iTranDim[1];                  // 平移变换后图像的页面大小(一层)
+
+	for(int i = 0; i < iTranLength; i++)
+	{
+		// 求变换后图像位置的坐标
+		int zz = i / iTranSizeXY;
+		int yy = i % iTranSizeXY / iTranDim[0];
+		int xx = i % iTranDim[0];
+
+		int positionI = (zz + iTranOriginal[2]) * iSizeXY + (yy + iTranOriginal[1]) * iDim[0] + (xx + iTranOriginal[0]); // 算出标签映射回原图像的坐标位置
+		if(LIVER_8SEGMENT_PART2 == pMask8[positionI] || LIVER_8SEGMENT_PART3 == pMask8[positionI])
+		{
+			pTranMask[i] = pMask8[positionI];      		
+		}
+		else
+		{
+			pTranMask[i] = 0;
+		}
+		/* 算出CT映射回原图像的坐标位置
+		 * 由于在分割八段时，已经算出了肝脏位置Z轴方向的最大iEnd和最小iStart（全局变量）
+		 * 所以映射CT时需要算上已经被截小的CT图像的坐标
+		 */
+		int positionCT = (zz + iTranOriginal[2] - iStart) * iSizeXY + (yy + iTranOriginal[1]) * iDim[0] + (xx + iTranOriginal[0]); 
+		pTranRaw[i] = pData_Base[positionCT];
+	}
+
+	writeData(pTranRaw, gFileName + "tranRaw.raw", iTranDim);   //输出变换后的Raw
+	writeData(pTranMask, gFileName + "tranMask.raw", iTranDim); //输出变换后的Mask
+	ofstream tranParam(gFileName + "tranParam.txt");
+    if (tranParam.is_open())
+    {
+        tranParam << "iTranOriginal" << endl;
+		tranParam << "xOriginal = " << iTranOriginal[0] << "\nyOriginal = " << iTranOriginal[1] << "\nzOriginal = " << iTranOriginal[2] << endl;
+		tranParam << "\niTranDim\n";
+		tranParam << "x = " << iTranDim[0] << "\ny = " << iTranDim[1] << "\nz = " << iTranDim[2] << "\n";
+		tranParam << "Z_iStart = " << iStart << "\nZ_iEnd = " << iEnd;
+        tranParam.close();
+    }
+}
+
 /*
  * 平移逆变换函数 translateTranReverse
  * 参数：
@@ -5266,7 +5518,6 @@ char* SegFunction::translateTran(int *iTranOriginal, int *iTranDim, short *pData
  *		iTranDim      变换后的图像xyz
  *		pTranMask     变换后图像的mask
  *		pMask8        用于恢复原始图像分割的肝八段
- *      pData_Base    原始灰度图像数据
  *		iDim		  原图像的xyz
  *
  * 返回值： 逆变换（还原）后图像的mask
@@ -5507,22 +5758,18 @@ void SegFunction::seg_CaudateLobe(char *pMask_2_3, int *iTranOriginal, const int
 		}
 	}
 	
+	//writeData(pMask_2_3, gFileName + "watershed_3_1.raw", iDim);
+
 	delete[]pSrc;
 	delete[]pDst;
 	delete[]SeedImage;
-
-	//writeData(pMask_2_3, gFileName + "watershed_3_1.raw", iDim);
-
-	
-
-
 	delete[]dis;
 	delete[]greyData;
 	delete[]result;
 }
 
 
-void SegFunction::seg_CaudateLobe_manual(char *pMask_2_3, int *iTranOriginal, const int *iDim)
+void SegFunction::seg_CaudateLobe_manual_cut(char *pMask_2_3, int *iTranOriginal, const int *iDim)
 {
 	int len = iDim[0] * iDim[1] * iDim[2];
 	int pageSize = iDim[0] * iDim[1];
@@ -5543,12 +5790,13 @@ void SegFunction::seg_CaudateLobe_manual(char *pMask_2_3, int *iTranOriginal, co
 	int pointb[3]={272,233,474};*/
 
 	// ChenCongmei
-	/*int pointa[3] = {230,238,43};  
-	int pointb[3] = {245,241,43}; */
+	int pointa[3] = {230,238,43};  
+	int pointb[3] = {245,241,43}; 
 
 	// ChenAnping
-	int pointa[3]={209,215,494};  
-	int pointb[3]={216,237,494}; 
+	/*int pointa[3]={209,215,494};  
+	int pointb[3]={216,237,494}; */
+
 	int z_position = pointa[2] - iTranOriginal[2]; //切割的那一层平移变换后的坐标
 	int tempPoint[3]={0,0,0};
 	for(int i=0;i<len;i++)
@@ -5802,7 +6050,148 @@ void SegFunction::seg_CaudateLobe_manual(char *pMask_2_3, int *iTranOriginal, co
   
 }
 
+void SegFunction::seg_CaudateLobe_manual_mend(char *pMask_2_3, int *iTranOriginal, const int *iDim)
+{
+	int len = iDim[0] * iDim[1] * iDim[2];
+	int pageSize = iDim[0] * iDim[1];
+	int *dis = new int[len];
+	memset(dis, 0, len * sizeof(int)); // dis内容全部置0
 
+
+	// ChenKaiyu
+	/*int pointa[3]={218,204,524};  
+	int pointb[3]={216,227,524};*/
+	
+	// WangChaofeng
+	/*int pointa[3]={260,249,284};  
+	int pointb[3]={260,221,235};*/
+	
+	// HuangGuanglan
+	/*int pointa[3]={223,219,474};  
+	int pointb[3]={272,233,474};*/
+
+	// ChenCongmei
+	int pointa[3] = {230,238,43};  
+	int pointb[3] = {245,241,43}; 
+
+	// ChenAnping
+	/*int pointa[3]={209,215,494};  
+	int pointb[3]={216,237,494};*/ 
+	int z_position = pointa[2] - iTranOriginal[2]; //切割的那一层平移变换后的坐标
+	int tempPoint[3]={0,0,0};
+	for(int i=0;i<len;i++)
+	{
+		  tempPoint[2] = i / pageSize;                //z
+		  tempPoint[1] = i % pageSize / iDim[0];      //y
+		  tempPoint[0] = i % iDim[0];                //x
+		  if(pointToLine(tempPoint,pointa,pointb, iTranOriginal)<3) 
+			  pMask_2_3[i]=0;
+	}
+
+	 // 计算并输出距离图
+	DisGraph(pMask_2_3, dis, iDim);
+	writeData(dis,gFileName + "tranDisGraphManual.raw",iDim);
+
+	// 求出最大最小距离
+	int min = dis[0];
+	int max = dis[0];
+	for(int i = 1; i < len; i++)
+	{
+	  if(dis[i] < min) 
+		  min = dis[i];
+	  else if(dis[i] > max) 
+		  max = dis[i];
+	}
+
+	// 计算灰度图
+	float *greyData = new float[len];
+	for(int i = 0; i < len; i++)
+	{
+	   greyData[i] = dis[i] * 255 / (max - min);
+	   //result[i]=greyData[i];
+	}
+	//writeData(greyData, gFileName + "greyData.raw", iDim);
+
+
+	//针对灰度图进行高斯平滑
+	 float *result = new float[len];
+	 int Ng = 3;//static_cast<int>(ceil(fNgParm*std_Gb))+1; //fNgParm 6   std_Gb 1
+	 std_Gb = 1 * fStdGbParm / fNorm; //fStdGbParm 3  fNorm 3
+	 Gaussian_3D(result, Ng, std_Gb, greyData, iDim);
+	 //writeData(result, gFileName + "pingHua.raw",iDim);
+	 
+
+	 //寻找距离肝静脉分叉点和门脉分叉点连线最近的极大值点
+	 int tempPos=0;
+	 int searchResult[3];
+	 int mindisPoint[3]; //保存 距离肝静脉分叉点和门脉分叉点连线最近的极大值点
+	 double distance;
+	 int flag=0;
+	 std::queue<Point3D<int>> Q;
+	 vector<double> tempDistace;
+	 unsigned char * SeedImage=new unsigned char[len];
+	 memset(SeedImage,0,sizeof(unsigned char)*len);
+	 int num=0;
+
+	 vector<int> seedpoints;
+
+	 for(int i=0;i<iDim[2];i++)
+		 for(int j=0;j<iDim[1];j++)
+			 for(int k=0;k<iDim[0];k++)
+	           {
+	             if((result[tempPos]>0) && maxPoint(result,k,j,i,iDim)) 
+				 {
+                   searchResult[0]=k;
+				   searchResult[1]=j;
+				   searchResult[2]=i;
+				   double tempdis = pointToLine(searchResult,veinPoint,portalPoint, iTranOriginal); // veinPoint（下腔静脉血管点） portalPoint（门脉血管点）在原始图像中手工选取
+				   if(tempdis<32)
+					   seedpoints.push_back(tempPos);
+				   num++;
+				   SeedImage[tempPos]=num;
+				   Q.push(Point3D<int>(searchResult[0],searchResult[1],searchResult[2]));
+				   tempDistace.push_back(tempdis);
+				 }
+				 tempPos++;
+	           }
+
+    unsigned char *pSrc=new unsigned char[len];
+	char *pDst=new char[len];
+	for(int i=0;i<len;i++)
+	{
+	  if(result[i]>255) pSrc[i]=255;
+	  else
+		  pSrc[i]=static_cast<unsigned char>(int(result[i]));
+
+	  //if(result[i]>0) SeedImage[i]=1;
+	}
+	//pSrc归一化到0-255 代价图   SeedImage 种子点 标签从1开始
+	WaterShedNew(dis, SeedImage, pDst, iDim, pMask_2_3, num); //将平滑后的距离图换成之前的距离图
+	writeData(pDst, gFileName + "pDst.raw",iDim);
+
+
+
+	// 给尾叶赋标签
+	for(int i=0;i<len;i++)
+	{
+		for(int j=0;j<seedpoints.size();j++)
+		{
+		  if(pDst[i] == pDst[seedpoints[j]])
+		    pMask_2_3[i]=LIVER_8SEGMENT_PART9;
+		}
+	}
+	
+	delete[]pSrc;
+	delete[]pDst;
+	delete[]SeedImage;
+
+	//writeData(pMask_2_3, gFileName+"watershed_3_1.raw",iDim);
+
+	delete[]dis;
+	delete[]greyData;
+	delete[]result;
+  
+}
 //void SegFunction::seg_CaudateLobe_manual_cut(char *pMask_2_3, int *iTranOriginal, const int *iDim)
 //{
 //	int len = iDim[0] * iDim[1] * iDim[2];

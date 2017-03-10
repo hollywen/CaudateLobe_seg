@@ -270,7 +270,8 @@ namespace CbibSeg{
 		//const char* centerlineName;
 		
 		void seg_CaudateLobe(char *pMask_2_3, const int *iDim);//分割肝尾叶
-		void seg_CaudateLobe_manual(char *pMask_2_3, int *iTranOriginal, const int *iDim);//分割肝尾叶
+		void seg_CaudateLobe_manual_cut(char *pMask_2_3, int *iTranOriginal, const int *iDim);//分割肝尾叶
+		void seg_CaudateLobe_manual_mend(char *pMask_2_3, int *iTranOriginal, const int *iDim);//分割肝尾叶
 		void seg_CaudateLobe(char *pMask_2_3, int *iTranOriginal, const int *iDim);//分割肝尾叶
 		void seg_CaudateLobe(const int* pointa,const int *pointb,const int *pointc,char *pMask,const int *iDim); //分割肝尾叶
 		void seg_CaudateLobe2(const int* pointa,const int *pointb,const int *pointc,int &portalLineR,char *pMask,const int *iDim); //分割肝尾叶第二刀
@@ -278,9 +279,13 @@ namespace CbibSeg{
 		void SegFunction::rotate(char *pMask,const int *iDim,const int *veinPoint,const int *portalPoint,const int *portalL);
 		void corrosion(char *afterFlag,char *flag,int mark1,int mark2,const int *iDim);
 		bool is_connect(char *mask,char *temp,int mark1,int mark2,const int *iDim,int &change);
-		char* translateTran(int* iTranOriginal, int *iTranDim, short *pData_Base, char *pMask8, const int *iDim);  // 平移变换函数
+
 		char* translateTran(int *iTranOriginal, int *iTranDim, char *pMask8, const int *iDim);  // 平移变换函数
+		char* translateTran(int* iTranOriginal, int *iTranDim, short *pData_Base, char *pMask8, const int *iDim);  // 平移变换函数
+		void calculateTranDim(int* iTranOriginal, int *iTranDim, char *pMask8, const int *iDim); //计算平移变换之后的大小
+		void translateTran(int* iTranOriginal, int *iTranDim, short *pTranRaw, char *pTranMask, short *pData_Base, char *pMask8, const int *iDim);   // 平移变换函数
 		char* translateTranReverse(int *iTranOriginal, const int *iTranDim, char *pTranMask, char *pMask8, const int *iDim);  // 平移逆变换函数
+
 		void DisGraph(char *mask,int *dis,const int *iDim);
 		bool roundValue(char *mask,int position,int value,const int *iDim);
 		bool roundValue(int *dis,int position,int value,const int *iDim);
